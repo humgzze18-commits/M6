@@ -1,0 +1,53 @@
+﻿REGION;ID;NAME;LASTNAME;INCOME;SOLD UNITS;TOTAL SALES;SALES AVERAGE
+NORTE;8725;Arturo;Bustos González;12041;212;4554;0.0693
+NORTE;4352;Jesús Said;Caro Ibarra;11504;488;3298;0.0502
+NORTE;5185;Ana Valeria;Cruz Montesinos;10046;429;7238;0.1102
+NORTE;6918;Miranda;Doring Romo;10266;109;5635;0.0858
+NORTE;8607;Bruno Guissepe;Garcini García;10431;222;5405;0.0823
+NORTE;5158;Donovan Hiram;García Cruz;11773;438;3577;0.0545
+NORTE;5397;Ixchel;García Galán;8654;291;10020;0.1526
+NORTE;2353;Sebastián;Garduño Pabello;11777;280;7922;0.1206
+NORTE;5467;Gustavo;Guadarrama García;12071;184;8972;0.1366
+NORTE;2523;Juan Pablo;Herrera Moro Salcedo;12072;143;9053;0.1378
+SUR;3969;Héctor;Hidalgo Sepúlveda;8438;431;6626;0.0920
+SUR;3397;Xareni;Lara Roldán;9041;451;4373;0.0607
+SUR;9252;Abigail;Luna Pineda;8561;330;4158;0.0577
+SUR;9091;Diego;Mancha Mendoza;9446;366;5022;0.0697
+SUR;2445;Eric;Martin Monterrubio;12141;476;6234;0.0865
+SUR;5305;Carlos Emmiliano;Medina Rojo;8044;340;6984;0.0969
+SUR;3796;Jimena Sarai;Medina Sedano;11431;231;7522;0.1044
+SUR;6032;Fermín;Méndez García;9953;448;3612;0.0501
+SUR;6413;Sergio Arturo;Nava Rodríguez;9572;218;5157;0.0716
+SUR;9619;Óscar Eduardo;Nieto Espitia;8421;145;5951;0.0826
+SUR;2323;Isis Renata;Reyes Rosales;12003;341;16408;0.2277
+ESTE;7537;Orson Nekros Oswaldo;Reyes Téllez;8152;299;6742;0.1195
+ESTE;5453;Carlos Eduardo;Riosmena Castañón;9837;494;8234;0.1460
+ESTE;6930;Natalia;Rivera Albarrán;10520;472;6301;0.1117
+ESTE;3346;Andrés Alejandro;Rodríguez López;8204;180;9387;0.1664
+ESTE;5832;Angélica Jazmín;Román Rodríguez;8776;420;8831;0.1565
+ESTE;3696;Erick David;Rosales Aldana;10188;102;3284;0.0582
+ESTE;7240;Marien;Ruenes Amarante;11402;358;5668;0.1005
+ESTE;5001;Juan Javier;Sánchez Arzate;9694;134;7964;0.1412
+OESTE;8547;Sophia Wendolin;Trejo Torres;8834;490;6417;0.0293
+OESTE;5775;Martha Anaís;Vega González;9668;282;6470;0.0295
+OESTE;3932;Fabián;Álvarez Hernández;9987;381;7055;0.0322
+OESTE;4655;Javier Iñaqui;Aicinena Vargas;10607;378;3476;0.0159
+OESTE;9063;Guadalupe;de la Cruz Márquez;9833;218;5548;0.0253
+OESTE;3913;Brenda Guadalupe;Flores Parada;11970;257;3354;0.0153
+OESTE;2420;Eduardo;Larios Fernández;8139;193;7597;0.0347
+OESTE;4472;Marco Antonio;Luna Calvillo;11847;134;5024;0.0229
+OESTE;6792;Manuel Alejandro;López Pérez;8842;113;4547;0.0208
+OESTE;6134;Bruno;Maglioni Granada;12206;136;4496;0.0205
+OESTE;3919;Marco Antonio;Mancha Alfaro;10897;187;87128;0.3977
+OESTE;9091;Romel Javid;Martínez Olvera;8784;177;8946;0.0408
+OESTE;4699;José Francisco;Monroy Ugarte;10308;384;8033;0.0367
+OESTE;5859;Carlos Miguel;Negrete Barrientos;12362;258;4121;0.0188
+OESTE;4326;Andrés;Quiroz Duarte;8307;364;8759;0.0400
+OESTE;7313;Karina;Reyes Santiago;8635;284;7371;0.0336
+OESTE;2309;Luis Alfredo;Rodríguez Santos;12088;474;4573;0.0209
+OESTE;8312;José Ramón Fernando;Romero Chávez;12369;449;7113;0.0325
+OESTE;6389;Carlos;Román Rivera;11996;285;4502;0.0206
+OESTE;8864;Luis Claudio;Soto Ayala;11281;269;5164;0.0236
+OESTE;8053;Víctor Hugo;Torres Rivera;8493;371;7524;0.0343
+OESTE;8694;Santiago;Valencia Corona;10661;477;5144;0.0235
+OESTE;4290;Filiberto Francisco;Vázquez Rodríguez;12275;282;6713;0.0306
