@@ -1,0 +1,4 @@
+streanmlit==1.51.0
+pandas
+numpy
+matplotlib
