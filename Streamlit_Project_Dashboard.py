@@ -52,6 +52,8 @@ def get_base_row_for_scenario(work_eng, encoders, sku_code, tp_code):
 
 st.set_page_config(page_title="Whirlpool Console (Prototype)", layout="wide")
 
+
+
 CSV_PATH = "base_consolidada_modified.csv"
 
 @st.cache_data
@@ -78,9 +80,9 @@ def load_data(path: str) -> pd.DataFrame:
 
 df = load_data(CSV_PATH)
 
-st.title("Whirlpool – Historical Insights & Prediction Console (Prototype)")
+st.title("Historical Insights & Prediction Console (Prototype)")
 
-# --- Quick dataset checks (collapsible)
+# Dataset checks
 with st.expander("Dataset snapshot & schema", expanded=False):
     st.dataframe(df.head(15))
     st.code(df.dtypes.astype(str).to_string())
@@ -109,6 +111,9 @@ if "start_date" not in st.session_state or "end_date" not in st.session_state:
 
 # Sidebar filters (widgets)
 with st.sidebar:
+    # brand logo
+    st.image("whirpool.jpg", width='content')
+
     page = st.radio(
         "Page",
         ["Historical Overview", "Predictions & Scenarios"],
@@ -229,19 +234,65 @@ if page == "Historical Overview":
             else:
                 st.info("No records for the selected Trade Partner(s), SKU(s), and date range.")
     else:
-        # KPI row
+        # kpis section
         def kpis(d: pd.DataFrame):
             total_qty = int(d["QTY"].sum()) if "QTY" in d.columns else 0
             avg_price = float(d["PRICE_FINAL_DA"].mean()) if "PRICE_FINAL_DA" in d.columns else np.nan
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Units", f"{total_qty:,}")
-            c2.metric("Avg Final Price", "—" if np.isnan(avg_price) else "${:,.2f}".format(avg_price))
-            if "INV" in d.columns:
-                c3.metric("Avg Inventory", "{:,.0f}".format(d["INV"].mean()))
+            total_rev = float(d["REVENUE"].sum()) if "REVENUE" in d.columns else np.nan
+            avg_inv = float(d["INV"].mean()) if "INV" in d.columns else np.nan
+
+            rev_text = "—" if np.isnan(total_rev) else "${:,.0f}".format(total_rev)
+            price_text = "—" if np.isnan(avg_price) else "${:,.2f}".format(avg_price)
+            inv_text = "—" if np.isnan(avg_inv) else "{:,.0f}".format(avg_inv)
+            qty_text = f"{total_qty:,}"
+
+            def kpi_box(label: str, value: str):
+                BOX_BORDER = "#1854b486"
+                BOX_HEADER_BG = "#1854b487"
+                BOX_HEADER_TEXT = "#ffffff"
+
+                st.markdown(
+                    f"""
+                    <div style="
+                        border-radius: 15px;
+                        border: 4px solid {BOX_BORDER};
+                        overflow: hidden;
+                        margin-bottom: 8px;
+                        text-align: center;
+                    ">
+                        <div style="
+                            background-color: {BOX_HEADER_BG};
+                            padding: 6px 10px;
+                            font-size: 1.2rem;
+                            font-weight: 600;
+                            color: {BOX_HEADER_TEXT};
+                        ">
+                            {label}
+                        </div>
+                        <div style="
+                            padding: 10px 10px 12px;
+                            font-size: 1.5rem;
+                            font-weight: 400;
+                        ">
+                            {value}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                kpi_box("Total Historical Revenue", rev_text)
+            with c2:
+                kpi_box("Total Historical Units", qty_text)
+            with c3:
+                kpi_box("Avg Final Price", price_text)
+            with c4:
+                kpi_box("Avg Inventory", inv_text)
 
         st.subheader("KPIs")
         kpis(df_f)
-
 
 import altair as alt
 from datetime import timedelta
@@ -280,43 +331,96 @@ if page == "Historical Overview":
             return top
         return []
 
+import altair as alt
+from datetime import timedelta
+# Period columns for charts
+if page == "Historical Overview":
+    if "DATE" in df.columns and not df["DATE"].isna().all():
+        # Month (already computed as MONTH_TS in load_data)
+        # Quarter
+        if "QUARTER_TS" not in df.columns:
+            df["QUARTER_TS"] = df["DATE"].dt.to_period("Q").dt.to_timestamp()
+
+        # Week (start of ISO week)
+        if "WEEK_TS" not in df.columns:
+            # ISO week start (Monday). Streamlit/Altair are fine with datetime.
+            df["WEEK_TS"] = df["DATE"].dt.to_period("W-MON").apply(lambda r: r.start_time)
+
+    def pick_skus_for_charts(d: pd.DataFrame, user_skus: list, top_n: int = 5) -> list:
+        """
+        If user_skus is non-empty, return them (intersection with data).
+        Else return Top-N SKUs ranked by sum(REVENUE) within d.
+        """
+        if "SKU" not in d.columns:
+            return []
+
+        if user_skus:
+            pool = set(d["SKU"].dropna().unique().tolist())
+            return [s for s in user_skus if s in pool]
+
+        # rank by sum(REVENUE) only for picking, not for display
+        if {"REVENUE","SKU"}.issubset(d.columns) and not d.empty:
+            top = (
+                d.groupby("SKU", as_index=False)["REVENUE"].sum()
+                .sort_values("REVENUE", ascending=False)
+                .head(top_n)["SKU"]
+                .tolist()
+            )
+            return top
+        return []
+
     # OVERVIEW (charts below KPIs)
     st.markdown("### Overview")
 
     if df_f.empty:
         st.info("No records under current filters to display charts.")
     else:
-        # Graph-only controls (do NOT affect KPIs)
-        gcol1, gcol2, gcol3 = st.columns([1,1,2])
+        # Layout: left = filters, right = line chart
+        filters_col, line_col = st.columns([1, 3])
 
-        with gcol1:
-            granularity = st.selectbox(
-                "Granularity",
-                options=["Month", "Quarter", "Week"],
-                index=0,
-                key="granularity_overview"
-            )
+        # --- chart filters (left side) ---
+        with filters_col:
+            st.markdown("#### Chart Filters")
 
-        with gcol2:
-            top_n = st.selectbox(
+            # Top-N selector as mini blocks
+            top_n = st.radio(
                 "Top-N SKUs",
-                options=[3,5,10],
+                options=[3, 5, 10],
                 index=1,  # default 5
-                key="topn_overview"
+                horizontal=True,
+                key="topn_overview",
             )
 
-        # Week-only 12-week window
-        week_start, week_end = None, None
-        if granularity == "Week" and "DATE" in df_f.columns and not df_f.empty:
-            min_d, max_d = df_f["DATE"].min().date(), df_f["DATE"].max().date()
-            with gcol3:
-                st.caption("Limit weekly view to a ≤12-week window.")
-                _ws = st.date_input("Start (≤12 weeks window)", value=min_d, min_value=min_d, max_value=max_d, key="week_start_overview")
-                # propose end = start + 83 days (~12 weeks)
-                proposed_end = min(max_d, _ws + timedelta(days=83))
-                _we = st.date_input("End (≤12 weeks window)", value=proposed_end, min_value=_ws, max_value=min(max_d, _ws + timedelta(days=83)), key="week_end_overview")
+            # Granularity selector as mini blocks
+            granularity = st.radio(
+                "Granularity",
+                options=["Week", "Quarter", "Month"],
+                index=0,
+                horizontal=True,
+                key="granularity_overview",
+            )
 
-                # clamp to <= 83 days
+            # Week-only 12-week window (same column, new rows)
+            week_start, week_end = None, None
+            if granularity == "Week" and "DATE" in df_f.columns and not df_f.empty:
+                min_d, max_d = df_f["DATE"].min().date(), df_f["DATE"].max().date()
+                st.caption("Limit weekly view to a ≤ 12-week window.")
+                _ws = st.date_input(
+                    "Week window start",
+                    value=min_d,
+                    min_value=min_d,
+                    max_value=max_d,
+                    key="week_start_overview",
+                )
+                proposed_end = min(max_d, _ws + timedelta(days=83))
+                _we = st.date_input(
+                    "Week window end",
+                    value=proposed_end,
+                    min_value=_ws,
+                    max_value=min(max_d, _ws + timedelta(days=83)),
+                    key="week_end_overview",
+                )
+
                 if (_we - _ws).days > 83:
                     _we = _ws + timedelta(days=83)
                     st.warning("Weekly range reduced to 12 weeks max.")
@@ -327,101 +431,199 @@ if page == "Historical Overview":
 
         # When week granularity is on, restrict to the 12-week window (if provided)
         if granularity == "Week" and week_start and week_end:
-            d_chart = d_chart[(d_chart["DATE"] >= pd.to_datetime(week_start)) &
-                            (d_chart["DATE"] <= pd.to_datetime(week_end))]
+            d_chart = d_chart[
+                (d_chart["DATE"] >= pd.to_datetime(week_start))
+                & (d_chart["DATE"] <= pd.to_datetime(week_end))
+            ]
 
         # Pick SKUs for charts only (Top-N by revenue if none selected)
-        chart_skus = pick_skus_for_charts(d_chart, st.session_state.get("sel_skus", []), top_n=top_n)
+        chart_skus = pick_skus_for_charts(
+            d_chart, st.session_state.get("sel_skus", []), top_n=top_n
+        )
         if chart_skus:
             d_chart = d_chart[d_chart["SKU"].isin(chart_skus)]
 
         # If after picking SKUs we have nothing, show friendly message
         if d_chart.empty:
-            st.info("No chartable data after applying chart-only controls (granularity / Top-N / 12-week window).")
+            st.info(
+                "No chartable data after applying chart-only controls "
+                "(granularity / Top-N / 12-week window)."
+            )
         else:
-            left, right = st.columns([2, 1])
+            # --- line chart (right side) ---
+            with line_col:
+                # metric selector (Price / Quantity / Revenue)
+                metric_choice = st.radio(
+                    "Metric over time",
+                    options=["Price", "Quantity", "Revenue"],
+                    index=0,
+                    horizontal=True,
+                    key="metric_overview",
+                )
 
-            # Left column: time series
-            with left:
                 # Choose x-axis & group by based on granularity
                 if granularity == "Month":
                     if "MONTH_TS" in d_chart.columns:
                         tkey = "MONTH_TS"
                     else:
                         tkey = "DATE"
-                    res = (d_chart.groupby([tkey, "SKU"], as_index=False)
-                                .agg(QTY=("QTY", "sum"), PRICE=("PRICE_FINAL_DA","mean")))
                 elif granularity == "Quarter":
                     tkey = "QUARTER_TS" if "QUARTER_TS" in d_chart.columns else "DATE"
-                    res = (d_chart.groupby([tkey, "SKU"], as_index=False)
-                                .agg(QTY=("QTY", "sum"), PRICE=("PRICE_FINAL_DA","mean")))
                 else:  # Week
                     tkey = "WEEK_TS" if "WEEK_TS" in d_chart.columns else "DATE"
-                    res = (d_chart.groupby([tkey, "SKU"], as_index=False)
-                                .agg(QTY=("QTY", "sum"), PRICE=("PRICE_FINAL_DA","mean")))
 
-                st.subheader("Price over time (by SKU)")
-                price_chart = (
+                agg_dict = {
+                    "QTY": ("QTY", "sum"),
+                    "PRICE": ("PRICE_FINAL_DA", "mean"),
+                }
+                # add revenue for charts if available
+                if "REVENUE" in d_chart.columns:
+                    agg_dict["REVENUE"] = ("REVENUE", "sum")
+
+                res = (
+                    d_chart.groupby([tkey, "SKU"], as_index=False)
+                    .agg(**agg_dict)
+                )
+
+                # map metric choice to column name and axis label
+                if metric_choice == "Price":
+                    y_col = "PRICE"
+                    y_label = "Avg Final Price"
+                elif metric_choice == "Quantity":
+                    y_col = "QTY"
+                    y_label = "Quantity"
+                else:
+                    y_col = "REVENUE"
+                    y_label = "Revenue"
+
+                st.subheader(f"{metric_choice} over time (by SKU)")
+
+                line_chart = (
                     alt.Chart(res)
                     .mark_line(point=True)
                     .encode(
                         x=alt.X(f"{tkey}:T", title=granularity),
-                        y=alt.Y("PRICE:Q", title="Avg Final Price"),
+                        y=alt.Y(f"{y_col}:Q", title=y_label),
                         color=alt.Color("SKU:N", title="SKU"),
-                        tooltip=[alt.Tooltip(f"{tkey}:T", title=granularity),
-                                "SKU:N",
-                                alt.Tooltip("PRICE:Q", title="Avg Price", format=",.2f"),
-                                alt.Tooltip("QTY:Q", title="Qty", format=",")]
+                        tooltip=[
+                            alt.Tooltip(f"{tkey}:T", title=granularity),
+                            "SKU:N",
+                            alt.Tooltip("PRICE:Q", title="Avg Price", format=",.2f")
+                            if "PRICE" in res.columns
+                            else alt.Tooltip("QTY:Q", title="Qty", format=","),
+                            alt.Tooltip("QTY:Q", title="Qty", format=",")
+                            if "QTY" in res.columns
+                            else alt.Tooltip("PRICE:Q", title="Avg Price", format=",.2f"),
+                            alt.Tooltip(
+                                "REVENUE:Q",
+                                title="Revenue",
+                                format=",.0f",
+                            )
+                            if "REVENUE" in res.columns
+                            else None,
+                        ],
                     )
-                    .properties(height=260)
+                    .properties(height=300)
                     .interactive()
                 )
-                st.altair_chart(price_chart, use_container_width=True)
+                st.altair_chart(line_chart, use_container_width=True)
 
-                st.subheader("Quantity over time (by SKU)")
-                qty_chart = (
-                    alt.Chart(res)
-                    .mark_line(point=True)
-                    .encode(
-                        x=alt.X(f"{tkey}:T", title=granularity),
-                        y=alt.Y("QTY:Q", title="Quantity"),
-                        color=alt.Color("SKU:N", title="SKU"),
-                        tooltip=[alt.Tooltip(f"{tkey}:T", title=granularity),
-                                "SKU:N",
-                                alt.Tooltip("QTY:Q", title="Qty", format=","),
-                                alt.Tooltip("PRICE:Q", title="Avg Price", format=",.2f")]
+            # --- partner bar charts row (3 in one row) ---
+            st.markdown("### Partner Breakdown")
+
+            # Color Config (you can change these)
+            COLOR_TOP2 = "#0b4096ff"
+            COLOR_OTHER = "#F0EEEE82"
+            COLOR_GRADIENT_LIGHT = "#A1CCEBFB"
+            COLOR_GRADIENT_DARK = "#0b4096ff"
+            COLOR_REVENUE = "#1854b4ff"
+
+            b1, b2, b3 = st.columns(3)
+
+            # Top Partners by Revenue
+            with b1:
+                st.subheader("Top Partners by Revenue")
+                if "REVENUE" in d_chart.columns:
+                    tp_rev = (
+                        d_chart.groupby("TP_GROUP", as_index=False)["REVENUE"].sum()
+                        .sort_values("REVENUE", ascending=False)
+                        .head(10)
                     )
-                    .properties(height=260)
-                    .interactive()
-                )
-                st.altair_chart(qty_chart, use_container_width=True)
+                    if not tp_rev.empty:
+                        tp_rev_chart = (
+                            alt.Chart(tp_rev)
+                            .mark_bar()
+                            .encode(
+                                x=alt.X("REVENUE:Q", title="Revenue"),
+                                y=alt.Y(
+                                    "TP_GROUP:N",
+                                    sort="-x",
+                                    title="Trade Partner",
+                                ),
+                                color=alt.value(COLOR_REVENUE),
+                                tooltip=[
+                                    "TP_GROUP:N",
+                                    alt.Tooltip("REVENUE:Q", format=",.0f"),
+                                ],
+                            )
+                            .properties(height=240)
+                        )
+                        st.altair_chart(tp_rev_chart, use_container_width=True)
+                    else:
+                        st.caption("No partner data for revenue.")
+                else:
+                    st.caption("Revenue column not available.")
 
-            # Right column: partner snapshots (qty / avg price)
-            with right:
+            # Top Partners by Quantity
+            with b2:
                 st.subheader("Top Partners by Quantity")
-                tp_qty = (d_chart.groupby("TP_GROUP", as_index=False)["QTY"].sum()
-                                .sort_values("QTY", ascending=False)
-                                .head(10))
+                tp_qty = (
+                    d_chart.groupby("TP_GROUP", as_index=False)["QTY"].sum()
+                    .sort_values("QTY", ascending=False)
+                    .head(10)
+                )
+
                 if not tp_qty.empty:
+                    # Flag top 2 partners
+                    tp_qty["RANK"] = range(1, len(tp_qty) + 1)
+                    tp_qty["COLOR_FLAG"] = np.where(tp_qty["RANK"] <= 2, "top", "other")
+
                     tp_qty_chart = (
                         alt.Chart(tp_qty)
                         .mark_bar()
                         .encode(
                             x=alt.X("QTY:Q", title="Quantity"),
                             y=alt.Y("TP_GROUP:N", sort="-x", title="Trade Partner"),
-                            tooltip=["TP_GROUP:N", alt.Tooltip("QTY:Q", format=",")]
+                            color=alt.Color(
+                                "COLOR_FLAG:N",
+                                scale=alt.Scale(
+                                    domain=["top", "other"],
+                                    range=[COLOR_TOP2, COLOR_OTHER],
+                                ),
+                                legend=None,
+                            ),
+                            tooltip=[
+                                "TP_GROUP:N",
+                                alt.Tooltip("QTY:Q", format=","),
+                            ],
                         )
                         .properties(height=240)
                     )
+
                     st.altair_chart(tp_qty_chart, use_container_width=True)
                 else:
                     st.caption("No partner data for quantity.")
 
+            # Top Partners by Avg Price
+            with b3:
                 st.subheader("Top Partners by Avg Price")
-                tp_price = (d_chart.groupby("TP_GROUP", as_index=False)["PRICE_FINAL_DA"].mean()
-                                    .rename(columns={"PRICE_FINAL_DA":"AVG_PRICE"})
-                                    .sort_values("AVG_PRICE", ascending=False)
-                                    .head(10))
+                tp_price = (
+                    d_chart.groupby("TP_GROUP", as_index=False)["PRICE_FINAL_DA"].mean()
+                    .rename(columns={"PRICE_FINAL_DA": "AVG_PRICE"})
+                    .sort_values("AVG_PRICE", ascending=False)
+                    .head(10)
+                )
+
                 if not tp_price.empty:
                     tp_price_chart = (
                         alt.Chart(tp_price)
@@ -429,10 +631,21 @@ if page == "Historical Overview":
                         .encode(
                             x=alt.X("AVG_PRICE:Q", title="Avg Final Price"),
                             y=alt.Y("TP_GROUP:N", sort="-x", title="Trade Partner"),
-                            tooltip=["TP_GROUP:N", alt.Tooltip("AVG_PRICE:Q", format=",.2f")]
+                            color=alt.Color(
+                                "AVG_PRICE:Q",
+                                scale=alt.Scale(
+                                    range=[COLOR_GRADIENT_LIGHT, COLOR_GRADIENT_DARK]
+                                ),
+                                legend=None,
+                            ),
+                            tooltip=[
+                                "TP_GROUP:N",
+                                alt.Tooltip("AVG_PRICE:Q", format=",.2f"),
+                            ],
                         )
                         .properties(height=240)
                     )
+
                     st.altair_chart(tp_price_chart, use_container_width=True)
                 else:
                     st.caption("No partner data for price.")
@@ -442,32 +655,39 @@ if page == "Predictions & Scenarios":
 
     st.title("Predictions & Scenario Builder (ML)")
     st.write(
-        "This page uses the **same trained XGBoost FastShallow models** and encoders "
-        "you exported from Colab. Final price and weekly quantity are both predicted."
+        "This page uses the **XGBoost FastShallow models**."
     )
 
     with st.spinner("Loading ML models…"):
         price_model, qty_model, encoders, work_eng, FEATURES_PRICE, FEATURES_QTY = load_ml_artifacts()
 
-    # --- 1) Select Trade Partner (dropdown) ---
+    # --- 1) Select Trade Partner (dropdown) + SKU input side by side ---
     all_tp = sorted(df["TP_GROUP"].dropna().unique().tolist()) if "TP_GROUP" in df.columns else []
-    tp_sel = st.selectbox("Trade Partner", all_tp, key="ml_tp_sel")
+
+    col_tp, col_sku = st.columns(2)
+
+    with col_tp:
+        tp_sel = st.selectbox("Trade Partner", all_tp, key="ml_tp_sel")
 
     # Limit SKUs universe to this TP (for validation), but input is manual
     df_tp_subset = df[df["TP_GROUP"] == tp_sel] if tp_sel and "TP_GROUP" in df.columns else df
     available_skus_tp = set(df_tp_subset["SKU"].dropna().unique().tolist()) if "SKU" in df.columns else set()
     available_skus_all = set(df["SKU"].dropna().unique().tolist()) if "SKU" in df.columns else set()
 
-    # --- 2) SKU typed by user (must exist in the database) ---
-    sku_input = st.text_input(
-        "SKU code (must exist in the database)",
-        value="",
-        key="ml_sku_input",
-        placeholder="e.g., 8MWTW2024WJM"
-    ).strip()
+    with col_sku:
+        sku_input = st.text_input(
+            "SKU code (must exist in the database)",
+            value="",
+            key="ml_sku_input",
+            placeholder="e.g., 8MWTW2024WJM"
+        ).strip()
+
+    # Centered validation message under both fields
+    msg_left, msg_center, msg_right = st.columns([1, 2, 1])
+    sku_message_placeholder = msg_center.empty()
 
     valid_sku = False
-    sku_message_placeholder = st.empty()
+
 
     if sku_input:
         if sku_input in available_skus_all:
@@ -494,11 +714,11 @@ if page == "Predictions & Scenarios":
 
     c1, c2 = st.columns(2)
 
-    # ========== Column 1: Discount (required) ==========
+    # Column 1: Discount
     with c1:
         default_disc = float(base_row.get("DISCOUNT_PCT", 0.0))
         disc_in = st.slider(
-            "Discount % (required)",
+            "Discount %",
             min_value=0.0,
             max_value=0.8,
             value=float(np.clip(default_disc, 0.0, 0.8)),
@@ -506,11 +726,11 @@ if page == "Predictions & Scenarios":
         )
         st.caption("This represents the promotional intensity for the scenario week.")
 
-    # ========== Column 2: Week of year (required) ==========
+    # Column 2: Week of year
     with c2:
         week_default = int(base_row.get("WEEK", 26)) if not pd.isna(base_row.get("WEEK", np.nan)) else 26
         week_in = st.slider(
-            "Week of Year (required)",
+            "Week of Year",
             min_value=1,
             max_value=52,
             value=week_default,
@@ -579,20 +799,23 @@ if page == "Predictions & Scenarios":
             log_pred_qty = float(qty_model.predict(X_row[FEATURES_QTY])[0])
             pred_qty = float(np.expm1(log_pred_qty))
 
-        st.markdown("### Scenario Prediction")
-        c1, c2 = st.columns(2)
+            pred_revenue = pred_price * pred_qty
+
+        st.title("Scenario Prediction")
+        c1, c2, c3 = st.columns(3)
         c1.metric("Predicted Final Price", f"{pred_price:,.2f}")
         c2.metric("Predicted Weekly Quantity", f"{pred_qty:,.0f} units")
+        c3.metric("Estimated Weekly Revenue", f"{pred_revenue:,.0f}")
 
-        st.caption(
-            f"Scenario: TP = **{tp_sel}**, SKU = **{sku_input}**, Week = **{week_in} ({approx_month_name} 2026)**, "
-            f"Discount = **{disc_in:.0%}**."
-        )
+        #st.caption(
+           # f"Scenario: TP = **{tp_sel}**, SKU = **{sku_input}**, Week = **{week_in} ({approx_month_name} 2026)**, "
+           # f"Discount = **{disc_in:.0%}**."
+        #)
 
         # ========================
         # 6) Historical vs Scenario Charts
         # ========================
-        st.markdown("### Historical Context vs Prediction")
+        st.title("Historical Context vs Prediction")
 
         # Filter historical data for this TP × SKU
         hist = df[(df["TP_GROUP"] == tp_sel) & (df["SKU"] == sku_input)].copy()
@@ -635,29 +858,35 @@ if page == "Predictions & Scenarios":
                 x=alt.X("DATE:T", title="Date")
             )
 
-            price_hist_line = base_price.transform_filter(
-                alt.datum.TYPE == "Historical"
-            ).mark_line(point=True).encode(
-                y=alt.Y("PRICE_FINAL_DA:Q", title="Final Price"),
-                color=alt.value("#1f77b4"),
-                tooltip=[
-                    alt.Tooltip("DATE:T", title="Date"),
-                    alt.Tooltip("PRICE_FINAL_DA:Q", title="Price", format=",.2f")
-                ]
+            price_hist = (
+                base_price
+                .transform_filter(alt.datum.TYPE == "Historical")
+                .mark_line(point=True)
+                .encode(
+                    y=alt.Y("PRICE_FINAL_DA:Q", title="Final Price"),
+                    color=alt.value("#1f77b4"),
+                    tooltip=[
+                        alt.Tooltip("DATE:T", title="Date"),
+                        alt.Tooltip("PRICE_FINAL_DA:Q", title="Price", format=",.2f"),
+                    ],
+                )
             )
 
-            price_pred_point = base_price.transform_filter(
-                alt.datum.TYPE == "Prediction"
-            ).mark_point(size=120, filled=True).encode(
-                y="PRICE_FINAL_DA:Q",
-                color=alt.value("#ff7f0e"),
-                tooltip=[
-                    alt.Tooltip("DATE:T", title="Scenario Date"),
-                    alt.Tooltip("PRICE_FINAL_DA:Q", title="Predicted Price", format=",.2f")
-                ]
+            price_pred = (
+                base_price
+                .transform_filter(alt.datum.TYPE == "Prediction")
+                .mark_point(size=120, filled=True)
+                .encode(
+                    y="PRICE_FINAL_DA:Q",
+                    color=alt.value("#ffcf0e"),
+                    tooltip=[
+                        alt.Tooltip("DATE:T", title="Scenario Date"),
+                        alt.Tooltip("PRICE_FINAL_DA:Q", title="Predicted Price", format=",.2f"),
+                    ],
+                )
             )
 
-            st.altair_chart(price_hist_line + price_pred_point, use_container_width=True)
+            st.altair_chart(price_hist + price_pred, use_container_width=True)
 
             # Quantity chart
             st.subheader("Quantity – Historical vs Scenario")
@@ -665,29 +894,36 @@ if page == "Predictions & Scenarios":
                 x=alt.X("DATE:T", title="Date")
             )
 
-            qty_hist_line = base_qty.transform_filter(
-                alt.datum.TYPE == "Historical"
-            ).mark_line(point=True).encode(
-                y=alt.Y("QTY:Q", title="Quantity"),
-                color=alt.value("#1f77b4"),
-                tooltip=[
-                    alt.Tooltip("DATE:T", title="Date"),
-                    alt.Tooltip("QTY:Q", title="Qty", format=",")
-                ]
+            qty_hist = (
+                base_qty
+                .transform_filter(alt.datum.TYPE == "Historical")
+                .mark_line(point=True)
+                .encode(
+                    y=alt.Y("QTY:Q", title="Quantity"),
+                    color=alt.value("#1f77b4"),
+                    tooltip=[
+                        alt.Tooltip("DATE:T", title="Date"),
+                        alt.Tooltip("QTY:Q", title="Qty", format=","),
+                    ],
+                )
             )
 
-            qty_pred_point = base_qty.transform_filter(
-                alt.datum.TYPE == "Prediction"
-            ).mark_point(size=120, filled=True).encode(
-                y="QTY:Q",
-                color=alt.value("#ff7f0e"),
-                tooltip=[
-                    alt.Tooltip("DATE:T", title="Scenario Date"),
-                    alt.Tooltip("QTY:Q", title="Predicted Qty", format=",")
-                ]
+            qty_pred = (
+                base_qty
+                .transform_filter(alt.datum.TYPE == "Prediction")
+                .mark_point(size=120, filled=True)
+                .encode(
+                    y="QTY:Q",
+                    color=alt.value("#ffcf0e"),
+                    tooltip=[
+                        alt.Tooltip("DATE:T", title="Scenario Date"),
+                        alt.Tooltip("QTY:Q", title="Predicted Qty", format=","),
+                    ],
+                )
             )
 
-            st.altair_chart(qty_hist_line + qty_pred_point, use_container_width=True)
+            st.altair_chart(qty_hist + qty_pred, use_container_width=True)
+
 
             st.caption(
                 "The lines show the historical behavior of this TP × SKU for the last ~1.5 years. "
