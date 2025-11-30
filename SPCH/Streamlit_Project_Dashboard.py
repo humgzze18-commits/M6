@@ -27,18 +27,31 @@ WHIRLPOOL_SKU_COLORS = [
 ]
 
 @st.cache_resource
-def load_ml_artifacts(path="artifacts"):
-    price_model = joblib.load(os.path.join(path, "xgb_price_fastshallow.joblib"))
-    qty_model   = joblib.load(os.path.join(path, "xgb_qty_fastshallow.joblib"))
-    encoders    = joblib.load(os.path.join(path, "encoders.joblib"))
+def load_ml_artifacts():
+    # Always use artifacts folder next to this file
+    artifacts_dir = os.path.join(BASE_DIR, "artifacts")
 
-    with open(os.path.join(path, "feature_lists.json"), "r") as f:
+    price_path = os.path.join(artifacts_dir, "xgb_price_fastshallow.joblib")
+    qty_path   = os.path.join(artifacts_dir, "xgb_qty_fastshallow.joblib")
+    enc_path   = os.path.join(artifacts_dir, "encoders.joblib")
+    feats_path = os.path.join(artifacts_dir, "feature_lists.json")
+    work_path  = os.path.join(artifacts_dir, "work_engineered.csv")
+
+    # Debug to be 100% sure in Cloud
+    st.write("Artifacts dir:", artifacts_dir)
+    st.write("Price model exists?", os.path.exists(price_path))
+
+    price_model = joblib.load(price_path)
+    qty_model   = joblib.load(qty_path)
+    encoders    = joblib.load(enc_path)
+
+    with open(feats_path, "r") as f:
         feats = json.load(f)
 
     FEATURES_PRICE = feats["FEATURES_PRICE"]
     FEATURES_QTY   = feats["FEATURES_QTY"]
 
-    work = pd.read_csv(os.path.join(path, "work_engineered.csv"))
+    work = pd.read_csv(work_path)
     if "DATE" in work.columns:
         work["DATE"] = pd.to_datetime(work["DATE"], errors="coerce")
 
@@ -75,10 +88,6 @@ st.set_page_config(page_title="Whirlpool Console (Prototype)", layout="wide")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, "base_consolidada_modified.csv")
-
-st.write("BASE_DIR =", BASE_DIR)
-st.write("Artifacts folder exists?", os.path.exists(os.path.join(BASE_DIR, "artifacts")))
-st.write("Price model exists?", os.path.exists(os.path.join(BASE_DIR, "artifacts", "xgb_price_fastshallow.joblib")))
 
 @st.cache_data
 def load_data(path: str) -> pd.DataFrame:
