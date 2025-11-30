@@ -37,10 +37,6 @@ def load_ml_artifacts():
     feats_path = os.path.join(artifacts_dir, "feature_lists.json")
     work_path  = os.path.join(artifacts_dir, "work_engineered.csv")
 
-    # Debug to be 100% sure in Cloud
-    st.write("Artifacts dir:", artifacts_dir)
-    st.write("Price model exists?", os.path.exists(price_path))
-
     price_model = joblib.load(price_path)
     qty_model   = joblib.load(qty_path)
     encoders    = joblib.load(enc_path)
