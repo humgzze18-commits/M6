@@ -132,7 +132,9 @@ if "start_date" not in st.session_state or "end_date" not in st.session_state:
 # Sidebar filters
 with st.sidebar:
     # brand logo
-    st.image("whirpool.jPG", width='content')
+    logo_path = os.path.join(BASE_DIR, "whirlpool.jpg")
+    st.image(logo_path, width=200)
+
 
     page = st.radio(
         "Page",
