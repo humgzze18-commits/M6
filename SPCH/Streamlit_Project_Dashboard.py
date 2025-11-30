@@ -76,6 +76,10 @@ st.set_page_config(page_title="Whirlpool Console (Prototype)", layout="wide")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, "base_consolidada_modified.csv")
 
+st.write("BASE_DIR =", BASE_DIR)
+st.write("Artifacts folder exists?", os.path.exists(os.path.join(BASE_DIR, "artifacts")))
+st.write("Price model exists?", os.path.exists(os.path.join(BASE_DIR, "artifacts", "xgb_price_fastshallow.joblib")))
+
 @st.cache_data
 def load_data(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
