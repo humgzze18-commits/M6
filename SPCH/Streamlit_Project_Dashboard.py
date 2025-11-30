@@ -73,9 +73,8 @@ def get_base_row_for_scenario(work_eng, encoders, sku_code, tp_code):
 
 st.set_page_config(page_title="Whirlpool Console (Prototype)", layout="wide")
 
-
-
-CSV_PATH = "base_consolidada_modified.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_PATH = os.path.join(BASE_DIR, "base_consolidada_modified.csv")
 
 @st.cache_data
 def load_data(path: str) -> pd.DataFrame:
