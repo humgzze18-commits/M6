@@ -80,7 +80,7 @@ def get_base_row_for_scenario(work_eng, encoders, sku_code, tp_code):
     return subset.iloc[-1].copy()
 
 
-st.set_page_config(page_title="Whirlpool Console (Prototype)", layout="wide")
+st.set_page_config(page_title="Whirlpool Console", layout="wide")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, "base_consolidada_modified.csv")
@@ -109,7 +109,45 @@ def load_data(path: str) -> pd.DataFrame:
 
 df = load_data(CSV_PATH)
 
-st.title("Historical Insights & Prediction Console (Prototype)")
+# Anchor at the very top of the app (call once near the top of the script)
+st.markdown("<a id='top-of-page'></a>", unsafe_allow_html=True)
+
+def render_scroll_to_top_button():
+    st.markdown(
+        f"""
+        <div style="
+            margin-top: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: flex-start;
+        ">
+            <a href="#top-of-page" style="text-decoration: none;">
+                <button
+                    style="
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 8px;
+                        border: 2px solid {WHIRLPOOL_BLACK};
+                        background-color: {WHIRLPOOL_LIGHT_GRAY};
+                        color: {WHIRLPOOL_BLACK};
+                        font-size: 22px;
+                        font-weight: 700;
+                        cursor: pointer;
+                    "
+                >
+                    ↑
+                </button>
+            </a>
+            <span style="font-size: 0.85rem; color: {WHIRLPOOL_DARK_GRAY};">
+                Scroll back to the top
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.title("Historical Insights & Prediction Console")
 
 # Dataset checks
 with st.expander("Dataset snapshot & schema", expanded=False):
@@ -272,7 +310,7 @@ if page == "Historical Overview":
             total_rev = float(d["REVENUE"].sum()) if "REVENUE" in d.columns else np.nan
             avg_inv = float(d["INV"].mean()) if "INV" in d.columns else np.nan
 
-            rev_text = "—" if np.isnan(total_rev) else "${:,.0f}".format(total_rev)
+            rev_text = "—" if np.isnan(total_rev) else "${:,.2f}".format(total_rev)
             price_text = "—" if np.isnan(avg_price) else "${:,.2f}".format(avg_price)
             inv_text = "—" if np.isnan(avg_inv) else "{:,.0f}".format(avg_inv)
             qty_text = f"{total_qty:,}"
@@ -297,7 +335,7 @@ if page == "Historical Overview":
                         <div style="
                             background-color: {BOX_HEADER_BG};
                             padding: 6px 10px;
-                            font-size: 1.2rem;
+                            font-size: 1rem;
                             font-weight: 600;
                             color: {BOX_HEADER_TEXT};
                             text-transform: uppercase;
@@ -576,7 +614,7 @@ if page == "Historical Overview":
 
             # Color config
             COLOR_TOP2 = WHIRLPOOL_YELLOW
-            COLOR_OTHER = WHIRLPOOL_LIGHT_GRAY
+            COLOR_OTHER = WHIRLPOOL_MED_GRAY
             COLOR_GRADIENT_LIGHT = "#FFF3CC"
             COLOR_GRADIENT_DARK = WHIRLPOOL_YELLOW
 
@@ -704,6 +742,9 @@ if page == "Historical Overview":
                     st.altair_chart(tp_price_chart, use_container_width=True)
                 else:
                     st.caption("No partner data for price.")
+
+    # Scroll-to-top button at the very bottom of Historical Overview
+    render_scroll_to_top_button()
 
 
 # SECOND PAGE – Predictions and ML
@@ -1181,3 +1222,6 @@ if page == "Predictions & Scenarios":
             )
         else:
             st.info("No DATE column available to build the historical vs prediction charts.")
+    
+    # Scroll-to-top button at the very bottom of Predictions & Scenarios
+    render_scroll_to_top_button()
