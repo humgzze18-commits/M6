@@ -179,7 +179,7 @@ if "start_date" not in st.session_state or "end_date" not in st.session_state:
 # Sidebar filters
 with st.sidebar:
     # brand logo
-    logo_path = os.path.join(BASE_DIR, "whirlpool.jpg")
+    logo_path = os.path.join(BASE_DIR, "whirlpool.png")
     st.image(logo_path, width=200)
 
 
